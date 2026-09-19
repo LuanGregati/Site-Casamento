@@ -45,16 +45,25 @@ export default function AdminPage() {
   }
 
   async function loadAll() {
-    const [g, gi, c] = await Promise.all([
-      fetch("/api/admin/guests").then((r) => r.json()),
-      fetch("/api/gifts").then((r) => r.json()),
-      fetch("/api/admin/claims").then((r) => r.json()),
-    ]);
-    if (g.guests) setGuests(g.guests);
-    if (gi.gifts) setGifts(gi.gifts);
-    if (c.claims) {
-      setClaims(c.claims);
-      setTotalCents(c.total_cents || 0);
+    try {
+      const [gRes, giRes, cRes] = await Promise.all([
+        fetch("/api/admin/guests"),
+        fetch("/api/gifts"),
+        fetch("/api/admin/claims"),
+      ]);
+      const [g, gi, c] = await Promise.all([gRes.json().catch(() => ({})), giRes.json().catch(() => ({})), cRes.json().catch(() => ({}))]);
+      if (gRes.ok && g.guests) setGuests(g.guests);
+      if (giRes.ok && gi.gifts) setGifts(gi.gifts);
+      if (cRes.ok && c.claims) {
+        setClaims(c.claims);
+        setTotalCents(c.total_cents || 0);
+      }
+      if (!gRes.ok || !giRes.ok || !cRes.ok) {
+        const msg = g.error || gi.error || c.error;
+        if (msg) setError(String(msg));
+      }
+    } catch {
+      setError("Erro de conexão.");
     }
   }
 
@@ -64,6 +73,12 @@ export default function AdminPage() {
       if (r.ok) {
         setLogged(true);
         loadAll();
+      } else if (r.status === 401) {
+        // sem sessão, fica no login
+      } else {
+        r.json().catch(() => ({})).then((j) => {
+          if (j.error) setError(j.error);
+        });
       }
     });
     setInviteLink(`${window.location.origin}/convite`);
@@ -141,25 +156,29 @@ export default function AdminPage() {
 
   async function saveGift() {
     setError("");
-    const r = await fetch("/api/gifts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: editingId || undefined,
-        name: gName,
-        emoji: gEmoji || "🎁",
-        image: gImage,
-        price_reais: Number(gPrice.replace(",", ".")),
-        active: gActive,
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      setError(data.error || "Erro ao salvar.");
-      return;
+    try {
+      const r = await fetch("/api/gifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingId || undefined,
+          name: gName,
+          emoji: gEmoji || "🎁",
+          image: gImage,
+          price_reais: Number(gPrice.replace(",", ".")),
+          active: gActive,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(data.error || `Erro ao salvar (${r.status}).`);
+        return;
+      }
+      resetGiftForm();
+      loadAll();
+    } catch {
+      setError("Erro de conexão ao salvar.");
     }
-    resetGiftForm();
-    loadAll();
   }
 
   async function delGift(id: number) {

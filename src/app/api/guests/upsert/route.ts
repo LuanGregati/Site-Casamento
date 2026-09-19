@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { upsertGuest } from "@/lib/db";
 import { normalizePhone, isValidPhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
@@ -20,13 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Informe seu nome." }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  const db = getDb();
-  db.prepare(
-    `INSERT INTO guests (phone, name, companions, status, role, created_at, updated_at)
-     VALUES (?, ?, ?, ?, COALESCE((SELECT role FROM guests WHERE phone = ?), 'convidado'), ?, ?)
-     ON CONFLICT(phone) DO UPDATE SET name = excluded.name, companions = excluded.companions, status = excluded.status, updated_at = excluded.updated_at`
-  ).run(phone, name, JSON.stringify(companions), status, phone, now, now);
+  await upsertGuest(phone, name, JSON.stringify(companions), status);
 
   return NextResponse.json({
     guest: { phone, name, companions, status },
