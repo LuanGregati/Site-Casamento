@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [gActive, setGActive] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [inviteQr, setInviteQr] = useState("");
   const [inviteLink, setInviteLink] = useState("");
 
@@ -45,6 +46,7 @@ export default function AdminPage() {
   }
 
   async function loadAll() {
+    setRefreshing(true);
     try {
       const [gRes, giRes, cRes] = await Promise.all([
         fetch("/api/admin/guests"),
@@ -64,6 +66,8 @@ export default function AdminPage() {
       }
     } catch {
       setError("Erro de conexão.");
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -214,17 +218,32 @@ export default function AdminPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-6">
       <h1 className="text-2xl font-bold">Painel dos Noivos</h1>
-      <div className="mt-4 grid grid-cols-4 gap-2 text-center text-sm">
-        {totalPessoas} pessoas • {vou.length} vão • {naoVou.length} não vão • {reais(totalCents)} em presentes
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+          <p className="text-xl font-bold">{totalPessoas}</p>
+          <p className="text-xs text-stone-500">pessoas</p>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+          <p className="text-xl font-bold text-green-700">{vou.length}</p>
+          <p className="text-xs text-stone-500">vão</p>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+          <p className="text-xl font-bold text-stone-600">{naoVou.length}</p>
+          <p className="text-xs text-stone-500">não vão</p>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+          <p className="text-xl font-bold text-rose-700">{reais(totalCents)}</p>
+          <p className="text-xs text-stone-500">em presentes</p>
+        </div>
       </div>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 grid grid-cols-4 gap-1.5 sm:gap-2">
         {(["guests", "gifts", "claims", "invite"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 rounded-xl py-2 text-sm font-semibold ${tab === t ? "bg-rose-700 text-white" : "bg-stone-200"}`}
+            className={`min-w-0 truncate rounded-xl px-1 py-2 text-xs font-semibold sm:text-sm ${tab === t ? "bg-rose-700 text-white" : "bg-stone-200"}`}
           >
-            {t === "guests" ? "Convidados" : t === "gifts" ? "Presentes" : t === "claims" ? "Dados" : "Convite"}
+            {t === "guests" ? "Convidados" : t === "gifts" ? "Presentes" : t === "claims" ? "Recebidos" : "Convite"}
           </button>
         ))}
       </div>
@@ -232,6 +251,15 @@ export default function AdminPage() {
 
       {tab === "guests" && (
         <section className="mt-4 space-y-2">
+          <div className="flex items-center justify-end">
+            <button
+              onClick={loadAll}
+              disabled={refreshing}
+              className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 shadow-sm disabled:opacity-50"
+            >
+              {refreshing ? "Atualizando..." : "↻ Atualizar"}
+            </button>
+          </div>
           {guests.map((g) => (
             <div key={g.phone} className="rounded-2xl bg-white p-3 shadow-sm">
               <div className="flex items-center justify-between gap-2">
@@ -252,18 +280,27 @@ export default function AdminPage() {
 
       {tab === "gifts" && (
         <section className="mt-4">
-          <div className="rounded-2xl bg-white p-3 shadow-sm">
+          <div className="mb-2 flex items-center justify-end">
+            <button
+              onClick={loadAll}
+              disabled={refreshing}
+              className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 shadow-sm disabled:opacity-50"
+            >
+              {refreshing ? "Atualizando..." : "↻ Atualizar"}
+            </button>
+          </div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
             <b>{editingId ? "Editar presente" : "Novo presente"}</b>
-            <div className="mt-2 flex items-center gap-3">
+            <div className="mt-3 flex items-center gap-3">
               {gImage ? (
-                <img src={gImage} alt="Foto do presente" className="h-16 w-16 rounded-xl object-cover" />
+                <img src={gImage} alt="Foto do presente" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
               ) : (
-                <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-stone-100 text-3xl">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-3xl">
                   {gEmoji || "🎁"}
                 </span>
               )}
-              <div className="flex-1">
-                <label className="block rounded-xl border border-dashed border-stone-300 px-3 py-2 text-center text-sm font-semibold text-stone-600">
+              <div className="min-w-0 flex-1">
+                <label className="block rounded-xl border border-dashed border-stone-300 px-3 py-3 text-center text-sm font-semibold text-stone-600">
                   {photoLoading ? "Carregando..." : gImage ? "Trocar foto" : "Adicionar foto"}
                   <input
                     type="file"
@@ -279,16 +316,18 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-4 gap-2">
-              <input value={gEmoji} onChange={(e) => setGEmoji(e.target.value)} placeholder="🎁" className="rounded-xl border border-stone-300 px-2 py-2 text-center" />
-              <input value={gName} onChange={(e) => setGName(e.target.value)} placeholder="Nome" className="col-span-3 rounded-xl border border-stone-300 px-3 py-2" />
+            <div className="mt-3 flex gap-2">
+              <input value={gEmoji} onChange={(e) => setGEmoji(e.target.value)} placeholder="🎁" className="w-14 shrink-0 rounded-xl border border-stone-300 px-2 py-3 text-center" />
+              <input value={gName} onChange={(e) => setGName(e.target.value)} placeholder="Nome do presente" className="min-w-0 flex-1 rounded-xl border border-stone-300 px-3 py-3" />
             </div>
-            <div className="mt-2 flex gap-2">
-              <input value={gPrice} onChange={(e) => setGPrice(e.target.value)} inputMode="decimal" placeholder="Valor em R$" className="flex-1 rounded-xl border border-stone-300 px-3 py-2" />
-              <button onClick={saveGift} className="rounded-xl bg-rose-700 px-4 font-semibold text-white">Salvar</button>
-              {editingId && (
-                <button onClick={resetGiftForm} className="rounded-xl border border-stone-300 px-4">Cancelar</button>
-              )}
+            <div className="mt-2 flex flex-col gap-2">
+              <input value={gPrice} onChange={(e) => setGPrice(e.target.value)} inputMode="decimal" placeholder="Valor em R$" className="w-full rounded-xl border border-stone-300 px-3 py-3" />
+              <div className="flex gap-2">
+                <button onClick={saveGift} className="flex-1 rounded-xl bg-rose-700 py-3 font-semibold text-white">Salvar</button>
+                {editingId && (
+                  <button onClick={resetGiftForm} className="flex-1 rounded-xl border border-stone-300 py-3">Cancelar</button>
+                )}
+              </div>
             </div>
             {editingId && (
               <label className="mt-2 flex items-center gap-2 text-sm">
@@ -299,15 +338,19 @@ export default function AdminPage() {
           </div>
           <div className="mt-3 space-y-2">
             {gifts.map((g) => (
-              <div key={g.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
-                {g.image ? (
-                  <img src={g.image} alt={g.name} className="h-12 w-12 rounded-xl object-cover" />
-                ) : (
-                  <span className="text-3xl">{g.emoji}</span>
-                )}
-                <span className="flex-1"><b>{g.name}</b>{!g.active && <span className="ml-2 rounded-full bg-stone-200 px-2 py-0.5 text-xs">oculto</span>}<br /><span className="text-rose-700 font-bold">{reais(g.price_cents)}</span></span>
-                <button onClick={() => startEdit(g)} className="rounded-xl border border-stone-300 px-3 py-1 text-sm">Editar</button>
-                <button onClick={() => delGift(g.id)} className="rounded-xl border border-red-200 px-3 py-1 text-sm text-red-600">Excluir</button>
+              <div key={g.id} className="rounded-2xl bg-white p-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  {g.image ? (
+                    <img src={g.image} alt={g.name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                  ) : (
+                    <span className="text-3xl">{g.emoji}</span>
+                  )}
+                  <span className="min-w-0 flex-1"><b>{g.name}</b>{!g.active && <span className="ml-2 rounded-full bg-stone-200 px-2 py-0.5 text-xs">oculto</span>}<br /><span className="text-rose-700 font-bold">{reais(g.price_cents)}</span></span>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={() => startEdit(g)} className="flex-1 rounded-xl border border-stone-300 py-2 text-sm font-semibold">Editar</button>
+                  <button onClick={() => delGift(g.id)} className="flex-1 rounded-xl border border-red-200 py-2 text-sm font-semibold text-red-600">Excluir</button>
+                </div>
               </div>
             ))}
           </div>
@@ -316,7 +359,16 @@ export default function AdminPage() {
 
       {tab === "claims" && (
         <section className="mt-4 space-y-2">
-          <p className="font-bold">Total recebido: {reais(totalCents)}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-bold">Total recebido: {reais(totalCents)}</p>
+            <button
+              onClick={loadAll}
+              disabled={refreshing}
+              className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 shadow-sm disabled:opacity-50"
+            >
+              {refreshing ? "Atualizando..." : "↻ Atualizar"}
+            </button>
+          </div>
           {claims.map((c) => (
             <div key={c.id} className="rounded-2xl bg-white p-3 shadow-sm text-sm">
               <b>{c.guest_name}</b> ({c.guest_phone}) deu <b>{c.gift_emoji} {c.gift_name}</b> — {reais(c.value_cents)}
